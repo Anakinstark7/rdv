@@ -206,6 +206,23 @@
             margin-right: 10px;
         }
         
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: #3498db;
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
         @media (max-width: 768px) {
             .row, .date-group {
                 flex-direction: column;
@@ -337,6 +354,9 @@
                     </div>
                     <div class="file-warning">Maximum 7 MB (PDF, JPG, PNG)</div>
                     <input type="file" name="documents_principaux" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <div class="progress-bar" id="progress1">
+                        <div class="progress-fill"></div>
+                    </div>
                 </div>
                 
                 <!-- SECTION 2: Upload supplémentaire -->
@@ -348,6 +368,9 @@
                     <div class="file-warning">Maximum 7 MB (PDF, JPG, PNG)</div>
                     <input type="file" name="documents_supplementaires" accept=".pdf,.jpg,.jpeg,.png">
                     <div class="file-info">L'admin recevra un 2ème email "Nouvelle demande de rendez-vous visa partie 2"</div>
+                    <div class="progress-bar" id="progress2">
+                        <div class="progress-fill"></div>
+                    </div>
                 </div>
                 
                 <!-- SECTION 3: Upload complémentaire -->
@@ -359,6 +382,9 @@
                     <div class="file-warning">Maximum 7 MB (PDF, JPG, PNG)</div>
                     <input type="file" name="autres_documents" accept=".pdf,.jpg,.jpeg,.png">
                     <div class="file-info">L'admin recevra un 3ème email "Nouvelle demande de rendez-vous visa partie 3"</div>
+                    <div class="progress-bar" id="progress3">
+                        <div class="progress-fill"></div>
+                    </div>
                 </div>
                 
                 <button type="submit" class="submit-btn" id="submitBtn">Soumettre la demande</button>
@@ -380,31 +406,17 @@
             
             // Populate date dropdowns
             function populateDateDropdowns() {
-                // Months
-                const months = [
-                    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-                    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-                ];
-                
-                // Years (from 1950 to current year)
+                const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
                 const currentYear = new Date().getFullYear();
                 const years = [];
-                for (let i = 1950; i <= currentYear; i++) {
-                    years.push(i);
-                }
-                
-                // Days (1-31)
+                for (let i = 1950; i <= currentYear; i++) years.push(i);
                 const days = [];
-                for (let i = 1; i <= 31; i++) {
-                    days.push(i);
-                }
-                
-                // Get all month, day, and year dropdowns
+                for (let i = 1; i <= 31; i++) days.push(i);
+
                 const monthDropdowns = document.querySelectorAll('select[id$="mois"]');
                 const dayDropdowns = document.querySelectorAll('select[id$="jour"]');
                 const yearDropdowns = document.querySelectorAll('select[id$="annee"]');
-                
-                // Populate month dropdowns
+
                 monthDropdowns.forEach(dropdown => {
                     months.forEach((month, index) => {
                         const option = document.createElement('option');
@@ -413,8 +425,7 @@
                         dropdown.appendChild(option);
                     });
                 });
-                
-                // Populate day dropdowns
+
                 dayDropdowns.forEach(dropdown => {
                     days.forEach(day => {
                         const option = document.createElement('option');
@@ -423,8 +434,7 @@
                         dropdown.appendChild(option);
                     });
                 });
-                
-                // Populate year dropdowns
+
                 yearDropdowns.forEach(dropdown => {
                     years.forEach(year => {
                         const option = document.createElement('option');
@@ -434,12 +444,12 @@
                     });
                 });
             }
-            
+
             // File size validation
             function validateFileSize(fileInput, maxSizeMB) {
                 if (fileInput.files.length > 0) {
                     const fileSize = fileInput.files[0].size;
-                    const maxSize = maxSizeMB * 1024 * 1024; // Convert to bytes
+                    const maxSize = maxSizeMB * 1024 * 1024;
                     
                     if (fileSize > maxSize) {
                         alert(`Le fichier "${fileInput.name}" dépasse ${maxSizeMB} MB. Veuillez choisir un fichier plus petit.`);
@@ -449,7 +459,7 @@
                 }
                 return true;
             }
-            
+
             // Form submission handling
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -471,51 +481,50 @@
                     return;
                 }
                 
-                // Validate file sizes (7 MB each)
+                // Validate file sizes
                 const fileInputs = form.querySelectorAll('input[type="file"]');
                 for (let fileInput of fileInputs) {
-                    if (!validateFileSize(fileInput, 7)) {
-                        return;
-                    }
+                    if (!validateFileSize(fileInput, 7)) return;
                 }
-                
-                // Disable submit button
+
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Envoi en cours...';
-                
+
                 try {
-                    // Send part 1 (main form + principal documents)
-                    await sendFormPart(1, 'documents_principaux', 'Nouvelle demande de rendez-vous visa');
+                    // Send emails sequentially
+                    await sendEmailPart(1, 'documents_principaux', 'Nouvelle demande de rendez-vous visa');
                     
-                    // Send part 2 (supplementary documents)
                     if (fileInputs[1].files.length > 0) {
-                        await sendFormPart(2, 'documents_supplementaires', 'Nouvelle demande de rendez-vous visa partie 2');
+                        await sendEmailPart(2, 'documents_supplementaires', 'Nouvelle demande de rendez-vous visa partie 2');
                     }
                     
-                    // Send part 3 (other documents)
                     if (fileInputs[2].files.length > 0) {
-                        await sendFormPart(3, 'autres_documents', 'Nouvelle demande de rendez-vous visa partie 3');
+                        await sendEmailPart(3, 'autres_documents', 'Nouvelle demande de rendez-vous visa partie 3');
                     }
-                    
-                    // Show success message
+
+                    // Show success
                     successMessage.style.display = 'block';
                     form.style.display = 'none';
                     
                 } catch (error) {
                     console.error('Error:', error);
                     alert('Une erreur est survenue. Veuillez réessayer.');
-                    
-                    // Re-enable submit button
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Soumettre la demande';
                 }
             });
             
-            // Function to send each part
-            async function sendFormPart(partNumber, fileFieldName, subject) {
+            // Function to send each email part
+            async function sendEmailPart(partNumber, fileFieldName, subject) {
+                const progressBar = document.getElementById(`progress${partNumber}`);
+                const progressFill = progressBar.querySelector('.progress-fill');
+                
+                // Show progress bar
+                progressBar.style.display = 'block';
+                
                 const formData = new FormData();
                 
-                // Add all form data for reference
+                // Add all form data
                 const formElements = form.elements;
                 for (let i = 0; i < formElements.length; i++) {
                     const element = formElements[i];
@@ -524,49 +533,59 @@
                     }
                 }
                 
-                // Add the specific file for this part
+                // Add the specific file
                 const fileInput = form.querySelector(`input[name="${fileFieldName}"]`);
                 if (fileInput.files.length > 0) {
-                    formData.append('fichier', fileInput.files[0]);
+                    formData.append('attachment', fileInput.files[0]);
                 }
                 
                 // Add part information
-                formData.append('partie', partNumber);
+                formData.append('partie', `Partie ${partNumber}`);
                 formData.append('_subject', subject);
                 formData.append('_template', 'table');
+                
+                // Simulate progress
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 5;
+                    progressFill.style.width = `${progress}%`;
+                    if (progress >= 90) clearInterval(progressInterval);
+                }, 100);
                 
                 const response = await fetch('https://formsubmit.co/ajax/anakinstark777@gmail.com', {
                     method: 'POST',
                     body: formData
                 });
                 
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+                
                 const result = await response.json();
                 
                 if (!result.success) {
-                    throw new Error('Erreur lors de l\'envoi');
+                    throw new Error(`Erreur partie ${partNumber}`);
                 }
+                
+                // Hide progress bar after delay
+                setTimeout(() => {
+                    progressBar.style.display = 'none';
+                }, 1000);
                 
                 return result;
             }
             
-            // Phone number validation
+            // Phone validation
             const phoneField = document.getElementById('telephone');
             phoneField.addEventListener('blur', function() {
                 const value = this.value.trim();
                 if (value) {
                     const phonePattern = /^(05|06|07)[0-9]{8}$/;
-                    if (!phonePattern.test(value)) {
-                        this.style.borderColor = '#e74c3c';
-                    } else {
-                        this.style.borderColor = '#2ecc71';
-                    }
+                    this.style.borderColor = phonePattern.test(value) ? '#2ecc71' : '#e74c3c';
                 }
             });
             
-            // Initialize date dropdowns
             populateDateDropdowns();
         });
     </script>
 </body>
 </html>
-
