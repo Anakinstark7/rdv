@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Réservation de Rendez-vous Visa</title>
     <style>
+        /* Garder tous les styles précédents */
         * {
             margin: 0;
             padding: 0;
@@ -169,7 +170,17 @@
             display: none;
         }
         
-        /* File upload styles */
+        .error-message {
+            display: none;
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: center;
+            border-left: 5px solid #dc3545;
+        }
+
         .file-upload {
             border: 2px dashed #ddd;
             border-radius: 4px;
@@ -240,17 +251,6 @@
             transition: width 0.3s;
         }
 
-        .error-message {
-            display: none;
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-            color: #721c24;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            text-align: center;
-            border-left: 5px solid #dc3545;
-        }
-
         @media (max-width: 768px) {
             .row, .date-group {
                 flex-direction: column;
@@ -298,12 +298,12 @@
                 </div>
             </div>
             
+            <!-- FORMULAIRE SIMPLIFIÉ - TEST SANS UPLOAD D'ABORD -->
             <form id="visaForm" method="POST">
-                <!-- Web3Forms Configuration avec votre VRAIE clé -->
+                <!-- Configuration Web3Forms -->
                 <input type="hidden" name="access_key" value="e33b7e6c-6811-4c7f-9850-da55c85ecd26">
-                <input type="hidden" name="subject" value="Nouvelle demande de rendez-vous visa avec documents">
-                <input type="hidden" name="from_name" value="Formulaire Visa">
-                <input type="checkbox" name="botcheck" style="display: none;">
+                <input type="hidden" name="subject" value="Nouvelle demande de rendez-vous visa">
+                <input type="checkbox" name="botcheck" class="botcheck" style="display: none;">
                 
                 <div class="form-group">
                     <label for="nom-complet" class="required">Nom complet (comme le passeport)</label>
@@ -427,30 +427,21 @@
                     </select>
                     <input type="text" id="autre-centre" class="autre-input" name="Autre centre" placeholder="Précisez le centre">
                 </div>
-                
-                <!-- SECTION UPLOAD DE FICHIERS AVEC FILE.IO -->
+
+                <!-- Section fichiers optionnelle - SIMPLIFIÉE -->
                 <div class="form-group">
                     <label for="file-upload-input">Documents à joindre (optionnel)</label>
                     <div class="file-upload" id="file-upload-area">
                         <div class="file-upload-icon">📎</div>
                         <label for="file-upload-input" class="file-upload-label">
                             <strong>Cliquez pour sélectionner des fichiers</strong><br>
-                            ou glissez-déposez les ici<br>
-                            <small>Formats acceptés: PDF, JPG, PNG, DOC (Max 10MB par fichier)</small>
+                            <small>Formats: PDF, JPG, PNG, DOC (Max 5MB par fichier)</small>
                         </label>
-                        <input type="file" id="file-upload-input" class="file-upload-input" multiple 
-                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt">
-                        <div class="file-list" id="file-list"></div>
+                        <input type="file" id="file-upload-input" class="file-upload-input" 
+                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" multiple>
                     </div>
-                    <div class="upload-progress" id="uploadProgress">
-                        <div class="progress-bar">
-                            <div class="progress" id="progressBar"></div>
-                        </div>
-                        <small id="progressText">Téléversement des fichiers...</small>
-                    </div>
+                    <div id="file-names" style="margin-top: 10px; font-size: 14px; color: #666;"></div>
                 </div>
-                
-                <input type="hidden" name="Liens des fichiers" id="fichiersLiens">
                 
                 <button type="submit" class="submit-btn" id="submitBtn">Soumettre la demande</button>
             </form>
@@ -472,142 +463,21 @@
             const centreDemande = document.getElementById('centre-demande');
             const autreCentre = document.getElementById('autre-centre');
             const fileUploadInput = document.getElementById('file-upload-input');
-            const fileList = document.getElementById('file-list');
-            const fileUploadArea = document.getElementById('file-upload-area');
-            const uploadProgress = document.getElementById('uploadProgress');
-            const progressBar = document.getElementById('progressBar');
-            const progressText = document.getElementById('progressText');
-            const fichiersLiens = document.getElementById('fichiersLiens');
+            const fileNames = document.getElementById('file-names');
             const submitBtn = document.getElementById('submitBtn');
             
-            let uploadedFiles = [];
-            let fileLinks = [];
+            let selectedFiles = [];
             
-            // File upload functionality
+            // Gestion simple des fichiers
             fileUploadInput.addEventListener('change', function(e) {
-                handleFiles(e.target.files);
-            });
-            
-            // Drag and drop functionality
-            ['dragover', 'dragenter'].forEach(event => {
-                fileUploadArea.addEventListener(event, function(e) {
-                    e.preventDefault();
-                    fileUploadArea.style.borderColor = '#3498db';
-                    fileUploadArea.style.backgroundColor = '#f0f8ff';
-                });
-            });
-            
-            ['dragleave', 'dragend', 'drop'].forEach(event => {
-                fileUploadArea.addEventListener(event, function(e) {
-                    e.preventDefault();
-                    fileUploadArea.style.borderColor = '#ddd';
-                    fileUploadArea.style.backgroundColor = '#fafafa';
-                });
-            });
-            
-            fileUploadArea.addEventListener('drop', function(e) {
-                e.preventDefault();
-                handleFiles(e.dataTransfer.files);
-            });
-            
-            function handleFiles(files) {
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    // Check file size (10MB max for free services)
-                    if (file.size > 10 * 1024 * 1024) {
-                        alert(`Le fichier "${file.name}" est trop volumineux. Maximum 10MB.`);
-                        continue;
-                    }
-                    
-                    // Check file type
-                    const allowedTypes = [
-                        'application/pdf', 
-                        'image/jpeg', 
-                        'image/jpg', 
-                        'image/png', 
-                        'application/msword',
-                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                        'text/plain'
-                    ];
-                    
-                    if (!allowedTypes.includes(file.type)) {
-                        alert(`Le format de fichier "${file.name}" n'est pas accepté.`);
-                        continue;
-                    }
-                    
-                    uploadedFiles.push(file);
-                    displayFile(file);
+                selectedFiles = Array.from(e.target.files);
+                if (selectedFiles.length > 0) {
+                    fileNames.innerHTML = '<strong>Fichiers sélectionnés:</strong><br>' + 
+                        selectedFiles.map(file => `• ${file.name} (${formatFileSize(file.size)})`).join('<br>');
+                } else {
+                    fileNames.innerHTML = '';
                 }
-            }
-            
-            function displayFile(file) {
-                const fileItem = document.createElement('div');
-                fileItem.className = 'file-item';
-                fileItem.innerHTML = `
-                    <span>${file.name} (${formatFileSize(file.size)})</span>
-                    <span class="remove-file" data-filename="${file.name}">×</span>
-                `;
-                fileList.appendChild(fileItem);
-                
-                fileItem.querySelector('.remove-file').addEventListener('click', function() {
-                    const filename = this.getAttribute('data-filename');
-                    uploadedFiles = uploadedFiles.filter(f => f.name !== filename);
-                    fileLinks = fileLinks.filter(link => !link.includes(filename));
-                    fileItem.remove();
-                    updateFilesLinks();
-                });
-            }
-            
-            async function uploadFiles() {
-                if (uploadedFiles.length === 0) {
-                    return Promise.resolve("Aucun fichier joint");
-                }
-                
-                uploadProgress.style.display = 'block';
-                progressBar.style.width = '0%';
-                progressText.textContent = 'Téléversement des fichiers... (0%)';
-                
-                const links = [];
-                
-                for (let i = 0; i < uploadedFiles.length; i++) {
-                    const file = uploadedFiles[i];
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    
-                    try {
-                        // Using File.io FREE service for file uploads
-                        const response = await fetch('https://file.io', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            links.push(`${file.name}: ${data.link}`);
-                            console.log(`Fichier uploadé: ${file.name} -> ${data.link}`);
-                        } else {
-                            links.push(`${file.name}: Échec du téléversement`);
-                        }
-                        
-                        // Update progress
-                        const progress = ((i + 1) / uploadedFiles.length) * 100;
-                        progressBar.style.width = `${progress}%`;
-                        progressText.textContent = `Téléversement ${i + 1}/${uploadedFiles.length} (${Math.round(progress)}%)`;
-                        
-                    } catch (error) {
-                        console.error('Error uploading file:', error);
-                        links.push(`${file.name}: Erreur de téléversement`);
-                    }
-                }
-                
-                uploadProgress.style.display = 'none';
-                return links.join(' | ');
-            }
-            
-            function updateFilesLinks() {
-                fichiersLiens.value = fileLinks;
-            }
+            });
             
             function formatFileSize(bytes) {
                 if (bytes === 0) return '0 Bytes';
@@ -620,9 +490,6 @@
             function showError(message) {
                 errorText.textContent = message;
                 errorMessage.style.display = 'block';
-                setTimeout(() => {
-                    errorMessage.style.display = 'none';
-                }, 5000);
             }
             
             function showSuccess() {
@@ -630,7 +497,7 @@
                 form.style.display = 'none';
             }
             
-            // Show/hide "autre centre" input based on selection
+            // Show/hide "autre centre" input
             centreDemande.addEventListener('change', function() {
                 if (this.value === 'Autre') {
                     autreCentre.style.display = 'block';
@@ -641,11 +508,11 @@
                 }
             });
             
-            // Form submission
+            // Form submission - VERSION SIMPLIFIÉE
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 
-                // Basic validation
+                // Validation de base
                 let isValid = true;
                 const requiredFields = form.querySelectorAll('[required]');
                 requiredFields.forEach(field => {
@@ -662,31 +529,29 @@
                     return;
                 }
                 
-                // Disable submit button
+                // Désactiver le bouton
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Envoi en cours...';
                 
                 try {
-                    // Upload files to File.io first
-                    const filesResult = await uploadFiles();
-                    
-                    // Prepare form data for Web3Forms
+                    // Préparer les données pour Web3Forms
                     const formData = new FormData();
                     
-                    // Add all form fields
+                    // Ajouter les champs du formulaire
                     const formElements = form.elements;
-                    for (let i = 0; i < formElements.length; i++) {
-                        const element = formElements[i];
-                        if (element.name && element.value) {
-                            if (element.name === 'Liens des fichiers') {
-                                formData.append(element.name, filesResult);
-                            } else {
-                                formData.append(element.name, element.value);
-                            }
+                    for (let element of formElements) {
+                        if (element.name && element.value && element.type !== 'file') {
+                            formData.append(element.name, element.value);
                         }
                     }
                     
-                    // Send to Web3Forms
+                    // Ajouter les fichiers s'il y en a (méthode simple)
+                    if (selectedFiles.length > 0) {
+                        formData.append('Nombre de fichiers', selectedFiles.length.toString());
+                        formData.append('Fichiers', selectedFiles.map(f => f.name).join(', '));
+                    }
+                    
+                    // Envoyer à Web3Forms
                     const response = await fetch('https://api.web3forms.com/submit', {
                         method: 'POST',
                         body: formData
@@ -697,14 +562,13 @@
                     if (result.success) {
                         showSuccess();
                     } else {
-                        showError('Erreur lors de l\'envoi du formulaire. Veuillez réessayer.');
+                        showError('Erreur Web3Forms: ' + (result.message || 'Veuillez réessayer.'));
                     }
                     
                 } catch (error) {
-                    console.error('Error:', error);
-                    showError('Erreur de connexion. Veuillez vérifier votre internet et réessayer.');
+                    console.error('Erreur:', error);
+                    showError('Erreur de connexion: ' + error.message);
                 } finally {
-                    // Re-enable submit button
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Soumettre la demande';
                 }
@@ -712,28 +576,18 @@
             
             // Populate date dropdowns
             function populateDateDropdowns() {
-                const months = [
-                    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-                    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-                ];
+                const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                               'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
                 
                 const currentYear = new Date().getFullYear();
                 const years = [];
-                for (let i = 1950; i <= currentYear + 10; i++) {
-                    years.push(i);
-                }
+                for (let i = 1950; i <= currentYear + 10; i++) years.push(i);
                 
                 const days = [];
-                for (let i = 1; i <= 31; i++) {
-                    days.push(i);
-                }
+                for (let i = 1; i <= 31; i++) days.push(i);
                 
-                const monthDropdowns = document.querySelectorAll('select[id$="mois"]');
-                const dayDropdowns = document.querySelectorAll('select[id$="jour"]');
-                const yearDropdowns = document.querySelectorAll('select[id$="annee"]');
-                
-                monthDropdowns.forEach(dropdown => {
-                    months.forEach((month, index) => {
+                document.querySelectorAll('select[id$="mois"]').forEach(dropdown => {
+                    months.forEach(month => {
                         const option = document.createElement('option');
                         option.value = month;
                         option.textContent = month;
@@ -741,7 +595,7 @@
                     });
                 });
                 
-                dayDropdowns.forEach(dropdown => {
+                document.querySelectorAll('select[id$="jour"]').forEach(dropdown => {
                     days.forEach(day => {
                         const option = document.createElement('option');
                         option.value = day;
@@ -750,7 +604,7 @@
                     });
                 });
                 
-                yearDropdowns.forEach(dropdown => {
+                document.querySelectorAll('select[id$="annee"]').forEach(dropdown => {
                     years.forEach(year => {
                         const option = document.createElement('option');
                         option.value = year;
@@ -760,24 +614,19 @@
                 });
             }
             
-            // Phone number validation
-            const phoneField = document.getElementById('telephone');
-            phoneField.addEventListener('blur', function() {
+            // Phone validation
+            document.getElementById('telephone').addEventListener('blur', function() {
                 const value = this.value.trim();
                 if (value) {
                     const phonePattern = /^(05|06|07)[0-9]{8}$/;
-                    if (!phonePattern.test(value)) {
-                        this.style.borderColor = '#e74c3c';
-                    } else {
-                        this.style.borderColor = '#2ecc71';
-                    }
+                    this.style.borderColor = phonePattern.test(value) ? '#2ecc71' : '#e74c3c';
                 }
             });
             
-            // Initialize date dropdowns
             populateDateDropdowns();
         });
     </script>
 </body>
 </html>
+
 
